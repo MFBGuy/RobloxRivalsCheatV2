@@ -1,0 +1,79 @@
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+
+-- Configuration
+local assistAngle = 15 -- Maximum angle (in degrees) to adjust aim
+local assistDistance = 50 -- Maximum distance to consider targets for assist
+local assistSpeed = 0.5 -- How quickly the aim adjusts (0 to 1)
+
+local function getNearestTarget(origin, maxDistance, ignoreCharacter)
+	local nearestTarget = nil
+	local nearestDistanceSqr = maxDistance * maxDistance
+	local originRootPart = origin:FindFirstChild("HumanoidRootPart")
+	if not originRootPart then return nil end
+
+	for _, player in Players:GetPlayers() do
+		if player ~= origin.Parent then
+			local character = player.Character
+			if character then
+				local targetRootPart = character:FindFirstChild("HumanoidRootPart")
+				if targetRootPart then
+					local distanceSqr = (originRootPart.Position - targetRootPart.Position).Magnitude^2
+					if distanceSqr < nearestDistanceSqr then
+						nearestDistanceSqr = distanceSqr
+						nearestTarget = targetRootPart
+					end
+				end
+			end
+		end
+	end
+	return nearestTarget
+end
+
+local function adjustAim(player, targetPosition)
+	local character = player.Character
+	if not character then return nil end
+	local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
+	if not humanoidRootPart then return nil end
+
+	local directionToTarget = (targetPosition - humanoidRootPart.Position).Unit
+	local lookVector = humanoidRootPart.CFrame.LookVector
+
+	-- Calculate the angle between the current look direction and the target direction
+	local angleRadians = acos(math.clamp(lookVector:Dot(directionToTarget), -1, 1))
+	local angleDegrees = math.deg(angleRadians)
+
+	if angleDegrees <= assistAngle then
+		-- Calculate the rotation needed to face the target on the horizontal plane
+		local targetYaw = math.atan2(directionToTarget.X, directionToTarget.Z)
+		local currentYaw = math.atan2(lookVector.X, lookVector.Z)
+		local deltaYaw = targetYaw - currentYaw
+
+		-- Apply a small rotation towards the target
+		local newCFrame = humanoidRootPart.CFrame * CFrame.Angles(0, deltaYaw * assistSpeed, 0)
+		humanoidRootPart.CFrame = CFrame.new(humanoidRootPart.Position, newCFrame.LookVector + humanoidRootPart.Position)
+	end
+end
+
+Players.PlayerAdded:Connect(function(player)
+	player.CharacterAdded:Connect(function(character)
+		local humanoid = character:FindFirstChildOfClass("Humanoid")
+		if humanoid then
+			humanoid.Died:Connect(function()
+				-- Clean up any connections if needed
+			end)
+		end
+
+		local mouse = player:GetMouse()
+		mouse.Button1Down:Connect(function()
+			local target = getNearestTarget(character, assistDistance, character)
+			if target then
+				adjustAim(player, target.Position)
+				-- After adjusting the aim, you would proceed with your weapon firing logic
+				print(player.Name .. " attempted to aim at " .. target.Parent.Name .. " with assist.")
+				-- Placeholder for your weapon firing code
+			end
+		end)
+	end)
+end)
+print("RobloxRivalsCheatV2 has been loaded")
